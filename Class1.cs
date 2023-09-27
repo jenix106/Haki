@@ -3,37 +3,48 @@ using System.Collections.Generic;
 using ThunderRoad;
 using UnityEngine;
 
-namespace Haki {
-    public class HakiLevel : LevelModule
+namespace ArmamentHaki
+{
+    public class MaterialProperties
     {
-        public static HakiLevel local;
-        public bool Nanomachines;
-        public override IEnumerator OnLoadCoroutine()
+        public Color materialColor;
+        public float materialSmoothness;
+        public MaterialProperties(Color color, float smoothness)
         {
-            local = this;
-            return base.OnLoadCoroutine();
+            materialColor = color;
+            materialSmoothness = smoothness;
         }
     }
-    public class HakiSpell : SpellCastCharge
+    public class ArmamentHakiLevel : ThunderScript
+    {
+        [ModOption(name: "Nanomachines, son", tooltip: "Becoming a United States senator has never been easier", valueSourceName: nameof(booleanOption), defaultValueIndex = 1)]
+        public static bool Nanomachines = false;
+        public static ModOptionBool[] booleanOption =
+        {
+            new ModOptionBool("Enabled", true),
+            new ModOptionBool("Disabled", false)
+        };
+    }
+    public class ArmamentHakiSpell : SpellCastCharge
     {
         public static PhysicMaterial hakiMaterial = new PhysicMaterial("Blade");
         public override void Fire(bool active)
         {
             base.Fire(active);
             if (active) {
-                if (spellCaster.ragdollHand.gameObject.GetComponent<HakiRagdollHand>() == null)
+                if (spellCaster.ragdollHand.gameObject.GetComponent<ArmamentHakiRagdollHand>() == null)
                 {
                     Creature.meshRaycast = false;
-                    spellCaster.ragdollHand.gameObject.AddComponent<HakiRagdollHand>();
-                    EffectInstance instance = Catalog.GetData<EffectData>("HakiEffect").Spawn(spellCaster.ragdollHand.transform, true);
+                    spellCaster.ragdollHand.gameObject.AddComponent<ArmamentHakiRagdollHand>();
+                    EffectInstance instance = Catalog.GetData<EffectData>("ArmamentHakiEffect").Spawn(spellCaster.ragdollHand.transform, null, true);
                     instance.SetIntensity(1f);
                     instance.Play();
                 }
-                else if (spellCaster.ragdollHand.gameObject.GetComponent<HakiRagdollHand>() != null)
+                else if (spellCaster.ragdollHand.gameObject.GetComponent<ArmamentHakiRagdollHand>() != null)
                 {
-                    if (spellCaster.ragdollHand.creature.gameObject.GetComponent<HakiRagdoll>() != null)
-                        spellCaster.ragdollHand.creature.gameObject.GetComponent<HakiRagdoll>().DestroyThis();
-                    spellCaster.ragdollHand.gameObject.GetComponent<HakiRagdollHand>().DestroyThis();
+                    if (spellCaster.ragdollHand.creature.gameObject.GetComponent<ArmamentHakiRagdoll>() != null)
+                        spellCaster.ragdollHand.creature.gameObject.GetComponent<ArmamentHakiRagdoll>().DestroyThis();
+                    spellCaster.ragdollHand.gameObject.GetComponent<ArmamentHakiRagdollHand>().DestroyThis();
                 }
             }
         }
@@ -41,41 +52,47 @@ namespace Haki {
         {
             base.Load(imbue, level);
             Item item = imbue.colliderGroup.GetComponentInParent<Item>();
-            if (item.gameObject.GetComponent<HakiWeapon>() == null)
-                item.gameObject.AddComponent<HakiWeapon>().Setup(imbue);
-            else if (item.gameObject.GetComponent<HakiWeapon>() is HakiWeapon haki)
+            if (item.gameObject.GetComponent<ArmamentHakiWeapon>() == null)
+                item.gameObject.AddComponent<ArmamentHakiWeapon>().Setup(imbue);
+            else if (item.gameObject.GetComponent<ArmamentHakiWeapon>() is ArmamentHakiWeapon haki)
             {
                 haki.UnimbueAndDestroy(imbue);
             }
         }
     }
-    public class HakiSpellMerge : SpellMergeData
+    public class ArmamentHakiSpellMerge : SpellMergeData
     {
         public override void Merge(bool active)
         {
             base.Merge(active);
-            if (active && mana.casterLeft.ragdollHand.gameObject.GetComponent<HakiRagdollHand>() != null && mana.casterRight.ragdollHand.gameObject.GetComponent<HakiRagdollHand>() != null)
+            if (active && mana.casterLeft.ragdollHand.gameObject.GetComponent<ArmamentHakiRagdollHand>() != null && mana.casterRight.ragdollHand.gameObject.GetComponent<ArmamentHakiRagdollHand>() != null)
             {
-                if(mana.creature.gameObject.GetComponent<HakiRagdoll>() is HakiRagdoll haki)
+                if (mana.creature.gameObject.GetComponent<ArmamentHakiRagdoll>() is ArmamentHakiRagdoll haki)
                 {
                     Object.Destroy(haki);
                 }
-                else if(mana.creature.gameObject.GetComponent<HakiRagdoll>() == null)
+                else if(mana.creature.gameObject.GetComponent<ArmamentHakiRagdoll>() == null)
                 {
-                    mana.creature.gameObject.AddComponent<HakiRagdoll>(); 
+                    mana.creature.gameObject.AddComponent<ArmamentHakiRagdoll>(); 
                 }
             }
         }
     }
-    public class HakiRagdollHand : MonoBehaviour
+    public class ArmamentHakiRagdollHand : MonoBehaviour
     {
         RagdollHand hand;
         Dictionary<Collider, PhysicMaterial> colliders = new Dictionary<Collider, PhysicMaterial>();
-        Dictionary<Material, Color> colors = new Dictionary<Material, Color>();
+        Dictionary<Material, MaterialProperties> colors = new Dictionary<Material, MaterialProperties>();
         Dictionary<ColliderGroup, ColliderGroupData> groups = new Dictionary<ColliderGroup, ColliderGroupData>();
         public void Start()
         {
             hand = GetComponent<RagdollHand>();
+            hand.creature.OnDamageEvent += Creature_OnDamageEvent;
+        }
+
+        private void Creature_OnDamageEvent(CollisionInstance collisionInstance, EventTime eventTime)
+        {
+            if (eventTime == EventTime.OnStart && collisionInstance.targetColliderGroup == hand.colliderGroup) collisionInstance.damageStruct.damage = 0;
         }
 
         public void Update()
@@ -85,8 +102,9 @@ namespace Haki {
                 if (!hand.otherHand.renderers.Contains(renderer))
                     foreach (Material material in renderer.renderer.materials)
                     {
-                        if (!colors.ContainsKey(material)) colors.Add(material, material.GetColor("_BaseColor"));
+                        if (!colors.ContainsKey(material)) colors.Add(material, new MaterialProperties(material.GetColor("_BaseColor"), material.GetFloat("_Smoothness")));
                         material.SetColor("_BaseColor", Color.black);
+                        material.SetFloat("_Smoothness", 1);
                     }
             }
             if (!groups.ContainsKey(hand.colliderGroup)) groups.Add(hand.colliderGroup, hand.colliderGroup.data);
@@ -94,11 +112,11 @@ namespace Haki {
             foreach (Collider collider in hand.colliderGroup.colliders)
             {
                 if (!colliders.ContainsKey(collider)) colliders.Add(collider, collider.material);
-                collider.material = HakiSpell.hakiMaterial;
+                collider.material = ArmamentHakiSpell.hakiMaterial;
             }
-            if (hand.lowerArmPart.gameObject.GetComponent<HakiRagdollPart>() == null)
+            if (hand.lowerArmPart.gameObject.GetComponent<ArmamentHakiRagdollPart>() == null)
             {
-                hand.lowerArmPart.gameObject.AddComponent<HakiRagdollPart>();
+                hand.lowerArmPart.gameObject.AddComponent<ArmamentHakiRagdollPart>();
             }
         }
         public void DestroyThis()
@@ -113,7 +131,10 @@ namespace Haki {
                     foreach (Material material in renderer.renderer.materials)
                     {
                         if (colors.ContainsKey(material))
-                            material.SetColor("_BaseColor", colors[material]);
+                        {
+                            material.SetColor("_BaseColor", colors[material].materialColor);
+                            material.SetFloat("_Smoothness", colors[material].materialSmoothness);
+                        }
                     }
             }
             foreach (Collider collider in hand.colliderGroup.colliders)
@@ -123,13 +144,14 @@ namespace Haki {
             }
             if (groups.ContainsKey(hand.colliderGroup))
                 hand.colliderGroup.data = groups[hand.colliderGroup];
-            if(hand.lowerArmPart.gameObject.GetComponent<HakiRagdollPart>() != null)
+            if(hand.lowerArmPart.gameObject.GetComponent<ArmamentHakiRagdollPart>() != null)
             {
-                Destroy(hand.lowerArmPart.gameObject.GetComponent<HakiRagdollPart>());
+                Destroy(hand.lowerArmPart.gameObject.GetComponent<ArmamentHakiRagdollPart>());
             }
+            hand.creature.OnDamageEvent -= Creature_OnDamageEvent;
         }
     }
-    public class HakiRagdollPart : MonoBehaviour
+    public class ArmamentHakiRagdollPart : MonoBehaviour
     {
         RagdollPart part;
         Dictionary<Collider, PhysicMaterial> colliders = new Dictionary<Collider, PhysicMaterial>();
@@ -142,9 +164,16 @@ namespace Haki {
             foreach (Collider collider in part.colliderGroup.colliders)
             {
                 if (!colliders.ContainsKey(collider)) colliders.Add(collider, collider.material);
-                collider.material = HakiSpell.hakiMaterial;
+                collider.material = ArmamentHakiSpell.hakiMaterial;
             }
+            part.ragdoll.creature.OnDamageEvent += Creature_OnDamageEvent;
         }
+
+        private void Creature_OnDamageEvent(CollisionInstance collisionInstance, EventTime eventTime)
+        {
+            if (eventTime == EventTime.OnStart && collisionInstance.targetColliderGroup == part.colliderGroup) collisionInstance.damageStruct.damage = 0;
+        }
+
         public void OnDestroy()
         {
             if (part.colliderGroup != null)
@@ -157,32 +186,34 @@ namespace Haki {
                 if (groups.ContainsKey(part.colliderGroup))
                     part.colliderGroup.data = groups[part.colliderGroup];
             }
+            part.ragdoll.creature.OnDamageEvent -= Creature_OnDamageEvent;
         }
     }
-    public class HakiRagdoll : MonoBehaviour
+    public class ArmamentHakiRagdoll : MonoBehaviour
     {
         Creature creature;
-        Dictionary<Material, Color> colors = new Dictionary<Material, Color>();
+        Dictionary<Material, MaterialProperties> colors = new Dictionary<Material, MaterialProperties>();
         EffectInstance instance;
         public void Start()
         {
             creature = GetComponent<Creature>();
             foreach (RagdollPart part in creature.ragdoll.parts)
             {
-                if (part.gameObject.GetComponent<HakiRagdollPart>() == null || part.gameObject.GetComponent<HakiRagdollHand>() != null)
-                    part.gameObject.AddComponent<HakiRagdollPart>();
+                if (part.gameObject.GetComponent<ArmamentHakiRagdollPart>() == null && part.gameObject.GetComponent<ArmamentHakiRagdollHand>() == null)
+                    part.gameObject.AddComponent<ArmamentHakiRagdollPart>();
             }
             foreach (Creature.RendererData renderer in creature.renderers)
             {
                 foreach (Material material in renderer.renderer.materials)
                 {
-                    if (!colors.ContainsKey(material)) colors.Add(material, material.GetColor("_BaseColor"));
+                    if (!colors.ContainsKey(material)) colors.Add(material, new MaterialProperties(material.GetColor("_BaseColor"), material.GetFloat("_Smoothness")));
                     material.SetColor("_BaseColor", Color.black);
+                    material.SetFloat("_Smoothness", 1);
                 }
             }
-            if (HakiLevel.local.Nanomachines)
+            if (ArmamentHakiLevel.Nanomachines)
             {
-                instance = Catalog.GetData<EffectData>("ItHasToBeThisWay").Spawn(creature.ragdoll.rootPart.transform, true);
+                instance = Catalog.GetData<EffectData>("ItHasToBeThisWay").Spawn(creature.ragdoll.rootPart.transform, null, true);
                 instance.SetIntensity(1f);
                 instance.Play();
             }
@@ -195,32 +226,48 @@ namespace Haki {
         {
             foreach (RagdollPart part in creature.ragdoll.parts)
             {
-                if (part != null && part.gameObject.GetComponent<HakiRagdollPart>() != null)
-                    Destroy(part.gameObject.GetComponent<HakiRagdollPart>());
+                if (part != null && part.gameObject.GetComponent<ArmamentHakiRagdollPart>() != null)
+                    Destroy(part.gameObject.GetComponent<ArmamentHakiRagdollPart>());
             }
             foreach (Creature.RendererData renderer in creature.renderers)
             {
                 foreach (Material material in renderer.renderer.materials)
                 {
-                    if (colors.ContainsKey(material)) material.SetColor("_BaseColor", colors[material]);
+                    if (colors.ContainsKey(material))
+                    {
+                        material.SetColor("_BaseColor", colors[material].materialColor);
+                        material.SetFloat("_Smoothness", colors[material].materialSmoothness);
+                    }
                 }
             }
-            if (HakiLevel.local.Nanomachines)
+            if (instance != null)
                 instance.Stop();
         }
     }
-    public class HakiWeapon : MonoBehaviour
+    public class ArmamentHakiWeapon : MonoBehaviour
     {
         Item item; 
         Dictionary<Collider, PhysicMaterial> colliders = new Dictionary<Collider, PhysicMaterial>();
-        Dictionary<Material, Color> colors = new Dictionary<Material, Color>();
+        Dictionary<Material, MaterialProperties> colors = new Dictionary<Material, MaterialProperties>();
         Dictionary<ColliderGroup, ColliderGroupData> groups = new Dictionary<ColliderGroup, ColliderGroupData>();
         Dictionary<DamageModifierData.Modifier, float> modifiersDamper = new Dictionary<DamageModifierData.Modifier, float>();
         Dictionary<DamageModifierData.Modifier, bool> modifiersPierce = new Dictionary<DamageModifierData.Modifier, bool>();
         bool isUnimbuing = false;
+        Breakable breakable;
+        bool instantBreak;
+        float threshold;
         public void Start()
         {
             item = GetComponent<Item>();
+            breakable = item.GetComponent<Breakable>();
+            if (breakable != null)
+            {
+                breakable?.onTakeDamage?.AddListener(OnTakeDamage);
+                instantBreak = breakable.canInstantaneouslyBreak;
+                threshold = breakable.instantaneousBreakVelocityThreshold;
+                breakable.canInstantaneouslyBreak = false;
+                breakable.instantaneousBreakVelocityThreshold = Mathf.Infinity;
+            }
             foreach (ColliderGroup group in item.colliderGroups)
             {
                 if (!groups.ContainsKey(group)) groups.Add(group, group.data);
@@ -230,12 +277,13 @@ namespace Haki {
             foreach (Collider collider in item.GetComponentsInChildren<Collider>())
             {
                 if (!colliders.ContainsKey(collider)) colliders.Add(collider, collider.material);
-                collider.material = HakiSpell.hakiMaterial;
+                collider.material = ArmamentHakiSpell.hakiMaterial;
             }
             foreach (Renderer renderer in item.renderers)
             {
-                if (!colors.ContainsKey(renderer.material)) colors.Add(renderer.material, renderer.material.GetColor("_BaseColor"));
+                if (!colors.ContainsKey(renderer.material)) colors.Add(renderer.material, new MaterialProperties(renderer.material.GetColor("_BaseColor"), renderer.material.GetFloat("_Smoothness")));
                 renderer.material.SetColor("_BaseColor", Color.black);
+                renderer.material.SetFloat("_Smoothness", 1);
             }
             foreach (Damager damager in item.GetComponentsInChildren<Damager>())
             {
@@ -254,6 +302,11 @@ namespace Haki {
                 }
             }
         }
+        public void OnTakeDamage(float sqrMagnitude)
+        {
+            ++breakable.hitsUntilBreak;
+        }
+
         public void Setup(Imbue imbue)
         {
             StartCoroutine(Unimbue(imbue));
@@ -276,7 +329,10 @@ namespace Haki {
             foreach (Renderer renderer in item.renderers)
             {
                 if (colors.ContainsKey(renderer.material))
-                    renderer.material.SetColor("_BaseColor", colors[renderer.material]);
+                {
+                    renderer.material.SetColor("_BaseColor", colors[renderer.material].materialColor);
+                    renderer.material.SetFloat("_Smoothness", colors[renderer.material].materialSmoothness);
+                }
             }
             foreach (Damager damager in item.GetComponentsInChildren<Damager>())
             {
@@ -290,15 +346,17 @@ namespace Haki {
                     }
                 }
             }
+            if (breakable != null)
+            {
+                breakable?.onTakeDamage?.RemoveListener(OnTakeDamage);
+                breakable.canInstantaneouslyBreak = instantBreak;
+                breakable.instantaneousBreakVelocityThreshold = threshold;
+            }
             isUnimbuing = true;
             yield return new WaitForSeconds(2f);
-            if (imbue.spellCastBase.GetType() == typeof(HakiSpell))
+            if (imbue.spellCastBase.GetType() == typeof(ArmamentHakiSpell))
             {
-                /*imbue.energy = 0;
-                imbue.spellCastBase.Unload();
-                imbue.spellCastBase = null;
-                imbue.CancelInvoke();*/
-                imbue.SetEnergyInstant(0);
+                imbue.Stop();
             }
             Destroy(this);
             yield break;
@@ -306,13 +364,9 @@ namespace Haki {
         public IEnumerator Unimbue(Imbue imbue)
         {
             yield return new WaitForSeconds(2f);
-            if (imbue.spellCastBase.GetType() == typeof(HakiSpell))
+            if (imbue.spellCastBase.GetType() == typeof(ArmamentHakiSpell))
             {
-                /*imbue.energy = 0;
-                imbue.spellCastBase.Unload();
-                imbue.spellCastBase = null;
-                imbue.CancelInvoke();*/
-                imbue.SetEnergyInstant(0);
+                imbue.Stop();
             }
             yield break;
         }
@@ -336,7 +390,10 @@ namespace Haki {
                 foreach (Renderer renderer in item.renderers)
                 {
                     if (colors.ContainsKey(renderer.material))
-                        renderer.material.SetColor("_BaseColor", colors[renderer.material]);
+                    {
+                        renderer.material.SetColor("_BaseColor", colors[renderer.material].materialColor);
+                        renderer.material.SetFloat("_Smoothness", colors[renderer.material].materialSmoothness);
+                    }
                 }
                 foreach (Damager damager in item.GetComponentsInChildren<Damager>())
                 {
@@ -349,6 +406,12 @@ namespace Haki {
                                 if (modifiersPierce.ContainsKey(modifier)) modifier.allowPenetration = modifiersPierce[modifier];
                         }
                     }
+                }
+                if (breakable != null)
+                {
+                    breakable?.onTakeDamage?.RemoveListener(OnTakeDamage);
+                    breakable.canInstantaneouslyBreak = instantBreak;
+                    breakable.instantaneousBreakVelocityThreshold = threshold;
                 }
             }
         }
